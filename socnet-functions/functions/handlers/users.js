@@ -1,11 +1,12 @@
-const { admin, db } = require('../util/admin');
+const { admin, db } = require("../util/admin");
 
-const config = require('../util/config');
+const config = require("../util/config");
+const { uuid } = require("uuidv4");
 
-const firebase = require('firebase');
+const firebase = require("firebase");
 firebase.initializeApp(config);
 
-const { validateSignupData, validateLoginData, reduceUserDetails } = require('../util/validators');
+const { validateSignupData, validateLoginData, reduceUserDetails } = require("../util/validators");
 
 // Sign users up
 exports.signup = (req, res) => {
@@ -13,21 +14,21 @@ exports.signup = (req, res) => {
         email: req.body.email,
         password: req.body.password,
         confirmPassword: req.body.confirmPassword,
-        handle: req.body.handle
+        handle: req.body.handle,
     };
 
     const { valid, errors } = validateSignupData(newUser);
 
     if (!valid) return res.status(400).json(errors);
 
-    const noImg = 'no-img.png';
+    const noImg = "no-img.png";
 
     let token, userId;
     db.doc(`/users/${newUser.handle}`)
         .get()
         .then((doc) => {
             if (doc.exists) {
-                return res.status(400).json({ handle: 'this handle is already taken' });
+                return res.status(400).json({ handle: "this handle is already taken" });
             } else {
                 return firebase
                     .auth()
@@ -44,8 +45,9 @@ exports.signup = (req, res) => {
                 handle: newUser.handle,
                 email: newUser.email,
                 createdAt: new Date().toISOString(),
+                //TODO Append token to imageUrl. Work around just add token from image in storage.
                 imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
-                userId
+                userId,
             };
             return db.doc(`/users/${newUser.handle}`).set(userCredentials);
         })
@@ -54,10 +56,10 @@ exports.signup = (req, res) => {
         })
         .catch((err) => {
             console.error(err);
-            if (err.code === 'auth/email-already-in-use') {
-                return res.status(400).json({ email: 'Email is already is use' });
+            if (err.code === "auth/email-already-in-use") {
+                return res.status(400).json({ email: "Email is already is use" });
             } else {
-                return res.status(500).json({ error: err.code });
+                return res.status(500).json({ general: "Something went wrong, please try again" });
             }
         });
 };
@@ -172,6 +174,8 @@ exports.uploadImage = (req, res) => {
 
     let imageToBeUploaded = {};
     let imageFileName;
+    // String for image token
+    let generatedToken = uuid();
 
     busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
         console.log(fieldname, file, filename, encoding, mimetype);
@@ -196,14 +200,15 @@ exports.uploadImage = (req, res) => {
                 resumable: false,
                 metadata: {
                     metadata: {
-                        contentType: imageToBeUploaded.mimetype
+                        contentType: imageToBeUploaded.mimetype,
+                        //Generate token to be appended to imageUrl
+                        firebaseStorageDownloadTokens: generatedToken,
                     }
                 }
             })
             .then(() => {
-                const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${
-                    config.storageBucket
-                    }/o/${imageFileName}?alt=media`;
+                // Append token to url
+                const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${imageFileName}?alt=media&token=${generatedToken}`;
                 return db.doc(`/users/${req.user.handle}`).update({ imageUrl });
             })
             .then(() => {
@@ -221,7 +226,7 @@ exports.uploadImage = (req, res) => {
 exports.login = (req, res) => {
     const user = {
         email: req.body.email,
-        password: req.body.password
+        password: req.body.password,
     };
 
     const { valid, errors } = validateLoginData(user);
@@ -239,11 +244,9 @@ exports.login = (req, res) => {
         })
         .catch((err) => {
             console.error(err);
-            if (err.code === 'auth/wrong-password') {
-                return res
-                    .status(403)
-                    .json({ general: 'Wrong credentials, please try again' });
-            } else return res.status(500).json({ error: err.code });
+            // auth/wrong-password
+            // auth/user-not-user
+            return res.status(403).json({ general: "Wrong credentials, please try again" });
         });
 };
 
