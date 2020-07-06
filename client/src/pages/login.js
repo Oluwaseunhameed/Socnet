@@ -8,32 +8,9 @@ import { Link } from 'react-router-dom';
 // MUI Stuff
 import { Grid, Typography, TextField, Button, CircularProgress } from '@material-ui/core';
 
-const styles = {
-    form: {
-        textAlign: 'center'
-    },
-    image: {
-        margin: '20px auto 20px auto'
-    },
-    pageTitle: {
-        margin: '10px auto 10px auto'
-    },
-    textField: {
-        margin: '10px auto 10px auto'
-    },
-    button: {
-        marginTop: 20,
-        position: 'relative'
-    },
-    customError: {
-        color: 'red',
-        fontSize: '0.8rem',
-        marginTop: 10
-    },
-    progress: {
-        position: 'absolute'
-    }
-};
+const styles = (theme) => ({
+    ...theme.spreadThis
+});
 
 class Login extends Component {
 
@@ -62,6 +39,7 @@ class Login extends Component {
                 this.setState({
                     loading: false
                 });
+                localStorage.setItem('FBIdToken', `Bearer ${res.data.token}`);
                 this.props.history.push('/');
             })
             .catch((err) => {
